@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "个人 API 密钥保险箱（KeyVault）：本地加密钥匙串，专管 LLM API Key / GitHub Token / 云密钥"
 readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "GPL-3.0" }
 dependencies = ["cryptography>=41"]
 
 [project.scripts]
