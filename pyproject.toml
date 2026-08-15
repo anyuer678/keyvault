@@ -9,7 +9,7 @@ description = "个人 API 密钥保险箱（KeyVault）：本地加密钥匙串�
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "GPL-3.0" }
-dependencies = ["cryptography>=41"]
+dependencies = ["cryptography==48.0.0"]
 
 [project.scripts]
 kv = "cli:main"
