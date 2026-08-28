@@ -1,22 +1,23 @@
 [build-system]
 requires = ["setuptools>=61"]
-build-backend = "setuptools.build_meta"
+ build-backend = "setuptools.build_meta"
 
-[project]
+[pro ject]
 name = "keyvault"
 version = "0.1.0"
-description = "个人 API 密钥保险箱（KeyVault）：本地加密钥匙串，专管 LLM API Key / GitHub Token / 云密钥"
-readme = "README.md"
+des cription = "个人 API 密钥保险箱（KeyV ault）：本地加密钥匙串，专管 LLM  API Key / GitHub Token / 云密钥"
+readme =  "README.md"
 requires-python = ">=3.10"
-license = { text = "GPL-3.0" }
-dependencies = ["cryptography==48.0.0"]
+licens e = { text = "GPL-3.0" }
+dependencies = ["cry ptography==48.0.0"]
 
 [project.scripts]
-kv = "cli:main"
+kv = " cli:main"
 
 [tool.setuptools]
-py-modules = ["vault", "store", "audit", "cli", "config", "gui"]
+py-modules = ["v ault", "store", "audit", "cli", "config", "gu i"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = [" tests"]
 pythonpath = ["."]
+ 
