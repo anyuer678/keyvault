@@ -74,9 +74,3 @@ def decrypt_entry(key: bytes, entry: EncryptedEntry) -> str:
         raise IntegrityError("完整性校验失败") from e
     return plain.decode("utf-8")
 
-
-def payload_from(cipher: bytes, nonce: bytes, aad: bytes) -> bytes:
-    """从密文分离 payload（末尾 16B 为 tag）。"""
-    if len(cipher) < TAG_BYTES:
-        raise IntegrityError("密文长度不足")
-    return cipher[:-TAG_BYTES]

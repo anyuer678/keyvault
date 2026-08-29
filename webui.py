@@ -243,7 +243,18 @@ class Handler(BaseHTTPRequestHandler):
                 return _json_response(self, {"ok": False, "error": str(exc)}, 401)
         return _json_response(self, {"error": "not found"}, 404)
 
+    def _same_origin(self) -> bool:
+        """CSRF / DNS-rebinding 防线：浏览器跨站 POST 必带 Origin，
+        本地服务的 Origin 必须与 Host 一致；非浏览器客户端无 Origin 放行。"""
+        origin = self.headers.get("Origin")
+        if not origin:
+            return True
+        host = self.headers.get("Host") or ""
+        return urlparse(origin).netloc == host
+
     def do_POST(self):
+        if not self._same_origin():
+            return _json_response(self, {"error": "cross-origin request rejected"}, 403)
         parsed = urlparse(self.path)
         try:
             length = int(self.headers.get("Content-Length") or 0)
