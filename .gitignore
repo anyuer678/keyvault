@@ -22,3 +22,5 @@ LLM_API_KEY*
 # 系统
 .DS_Store
 Thumbs.db
+# 构建产物
+dist/
