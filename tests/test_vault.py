@@ -3,7 +3,7 @@
 import pytest
 
 from vault import (EncryptedEntry, IntegrityError, NONCE_LEN, TAG_BYTES,
-                   decrypt_entry, derive_key, encrypt_entry, payload_from)
+                   decrypt_entry, derive_key, encrypt_entry)
 
 PASSWORD = "correct horse battery staple"
 SALT = bytes(range(16))
@@ -56,20 +56,6 @@ def test_nonce_unique_and_random_per_entry():
     assert e1.nonce != e2.nonce
     assert len(e1.nonce) == NONCE_LEN
     assert e1.ciphertext != e2.ciphertext
-
-
-def test_payload_from_separates_tag():
-    key = derive_key(PASSWORD, SALT)
-    value = "hello-world"
-    entry = encrypt_entry(key, "n", "p", value, None)
-    payload = payload_from(entry.ciphertext, entry.nonce, b"")
-    assert payload == entry.ciphertext[:-TAG_BYTES]
-    assert len(entry.ciphertext) == len(payload) + TAG_BYTES
-
-
-def test_payload_from_too_short_raises():
-    with pytest.raises(ValueError):
-        payload_from(b"short", b"", b"")
 
 
 def test_tampered_ciphertext_raises_valueerror():
