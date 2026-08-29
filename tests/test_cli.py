@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-import cli
+from keyvault import cli
 
 PASSWORD = "test-pass-123"
 SECRET = "sk-stdin-value-9999"

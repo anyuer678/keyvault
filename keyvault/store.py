@@ -5,7 +5,7 @@ import sqlite3
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from vault import EncryptedEntry, NONCE_LEN, VaultHeader
+from .vault import EncryptedEntry, NONCE_LEN, VaultHeader
 
 _TMP_SUFFIX = ".tmp"
 _CHECK_MARKER = b"keyvault-ok"

@@ -5,8 +5,8 @@ import sqlite3
 
 import pytest
 
-from store import VaultRepo
-from vault import VaultHeader, decrypt_entry, derive_key, encrypt_entry
+from keyvault.store import VaultRepo
+from keyvault.vault import VaultHeader, decrypt_entry, derive_key, encrypt_entry
 
 SALT = bytes(range(16))
 PASSWORD = "correct horse battery staple"

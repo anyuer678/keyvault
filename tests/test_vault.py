@@ -2,7 +2,7 @@
 
 import pytest
 
-from vault import (EncryptedEntry, IntegrityError, NONCE_LEN, TAG_BYTES,
+from keyvault.vault import (EncryptedEntry, IntegrityError, NONCE_LEN, TAG_BYTES,
                    decrypt_entry, derive_key, encrypt_entry)
 
 PASSWORD = "correct horse battery staple"

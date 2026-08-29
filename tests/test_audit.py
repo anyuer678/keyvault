@@ -2,7 +2,7 @@
 
 import os
 
-from audit import KEY_NAME_PATTERN, scan_dir, scan_envline
+from keyvault.audit import KEY_NAME_PATTERN, scan_dir, scan_envline
 
 
 def test_pattern_matches_known_keys():
