@@ -4,10 +4,10 @@ import os
 
 import pytest
 
-import config
-import gui
-import store
-import vault
+from keyvault import config
+from keyvault import gui
+from keyvault import store
+from keyvault import vault
 
 PASSWORD = "gui-test-pass"
 SECRET = "sk-gui-secret-1234"

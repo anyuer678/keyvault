@@ -32,10 +32,10 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
-import audit as audit_mod
-import config
-import store
-import vault
+from . import audit as audit_mod
+from . import config
+from . import store
+from . import vault
 
 _KEY: bytes | None = None
 _LOCK = threading.Lock()

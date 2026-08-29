@@ -8,10 +8,10 @@ import shlex
 import sys
 from datetime import datetime
 
-import audit as audit_mod
-import config
-import store
-import vault
+from . import audit as audit_mod
+from . import config
+from . import store
+from . import vault
 
 _KEY: bytes | None = None
 

@@ -12,10 +12,10 @@ license = { text = "MIT" }
 dependencies = []
 
 [project.scripts]
-keyvault = "main:main"
+keyvault = "keyvault.cli:main"  # 修复悬空死入口：原 main 模块不存在
 
 [tool.setuptools]
-py-modules = ["main", "vault", "store", "audit", "gui", "cli", "config", "webui"]
+packages = ["keyvault"]
 include-package-data = true
 
 [tool.pytest.ini_options]

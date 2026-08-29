@@ -12,9 +12,9 @@ import tkinter as tk
 from datetime import datetime
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-import config
-import store
-import vault
+from . import config
+from . import store
+from . import vault
 
 _PROVIDERS = ["openai", "deepseek", "anthropic", "github", "aws", "azure", "google"]
 
