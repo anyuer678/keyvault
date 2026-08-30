@@ -4,9 +4,11 @@ import os
 import re
 from dataclasses import dataclass
 
-KEY_NAME_PATTERN = re.compile(r"(OPENAI|DEEPSEEK|GITHUB|AWS|AZURE|GOOGLE|API)_?KEY|TOKEN|SECRET")
+KEY_NAME_PATTERN = re.compile(
+    r"(OPENAI|ANTHROPIC|DEEPSEEK|GITHUB|AWS|AZURE|GOOGLE|ZHIPU|MOONSHOT|QWEN|DOUBAO|API)_?(KEY|TOKEN|SECRET)"
+)
 
-_TARGET_SUFFIXES = (".ini", ".toml", ".config")
+_TARGET_SUFFIXES = (".env", ".ini", ".toml", ".config", ".yaml", ".yml", ".json", ".ps1")
 
 
 @dataclass
