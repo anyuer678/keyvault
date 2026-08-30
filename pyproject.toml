@@ -9,7 +9,7 @@ description = "个人 API 密钥保险箱（KeyVault）：本地加密钥匙串�
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-dependencies = ["cryptography>=41.0"]
+dependencies = ["cryptography>=50.0.0"]
 
 [project.scripts]
 keyvault = "keyvault.cli:main"  # 修复悬空死入口：原 main 模块不存在
