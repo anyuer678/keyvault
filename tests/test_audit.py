@@ -85,3 +85,27 @@ def test_max_files_cap(tmp_path):
         (tmp_path / f".env{i}").write_text("OPENAI_API_KEY=sk-x\n", encoding="utf-8")
     findings = scan_dir(str(tmp_path), max_files=3)
     assert len(findings) <= 3
+
+
+def test_scan_yaml_file(tmp_path):
+    (tmp_path / "config.yaml").write_text(
+        "llm:\n  api_key: sk-yaml-leak\n  provider: openai\n", encoding="utf-8"
+    )
+    findings = scan_dir(str(tmp_path))
+    assert any(f.file.endswith("config.yaml") for f in findings)
+
+
+def test_scan_json_file(tmp_path):
+    (tmp_path / "settings.json").write_text(
+        '{"OPENAI_API_KEY": "sk-json-leak"}\n', encoding="utf-8"
+    )
+    findings = scan_dir(str(tmp_path))
+    assert any(f.file.endswith("settings.json") for f in findings)
+
+
+def test_scan_ps1_file(tmp_path):
+    (tmp_path / "deploy.ps1").write_text(
+        '$env:ANTHROPIC_API_KEY = "sk-ps1-leak"\n', encoding="utf-8"
+    )
+    findings = scan_dir(str(tmp_path))
+    assert any(f.file.endswith("deploy.ps1") for f in findings)
