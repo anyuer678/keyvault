@@ -5,7 +5,8 @@ import re
 from dataclasses import dataclass
 
 KEY_NAME_PATTERN = re.compile(
-    r"(OPENAI|ANTHROPIC|DEEPSEEK|GITHUB|AWS|AZURE|GOOGLE|ZHIPU|MOONSHOT|QWEN|DOUBAO|API)_?(KEY|TOKEN|SECRET)"
+    r"(OPENAI|ANTHROPIC|DEEPSEEK|GITHUB|AWS|AZURE|GOOGLE|ZHIPU|MOONSHOT|QWEN|DOUBAO|API)_?(KEY|TOKEN|SECRET)",
+    re.IGNORECASE,
 )
 
 _TARGET_SUFFIXES = (".env", ".ini", ".toml", ".config", ".yaml", ".yml", ".json", ".ps1")
@@ -19,16 +20,23 @@ class Finding:
 
 
 def scan_envline(line: str) -> Finding | None:
-    """单行判定：KEY=value 且 key 名匹配模式。"""
+    """单行判定：KEY=value / KEY: value（yaml/json）/ $env:NAME = value（ps1），key 名匹配模式。
+
+    = 与 : 两种分隔符都尝试，任一拆分出的 key 命中即报告。
+    """
     line = line.strip()
-    if not line or line.startswith("#") or "=" not in line:
+    if not line or line.startswith("#"):
         return None
-    key, _, _ = line.partition("=")
-    key = key.strip()
-    if not key:
-        return None
-    if KEY_NAME_PATTERN.search(key):
-        return Finding(file="", key_name=key, redacted=True)
+    for sep in ("=", ":"):
+        i = line.find(sep)
+        if i == -1:
+            continue
+        key = line[:i].strip().strip('"\'{}$')
+        key = re.sub(r"^env:", "", key, flags=re.IGNORECASE).strip()
+        if not key:
+            continue
+        if KEY_NAME_PATTERN.search(key):
+            return Finding(file="", key_name=key, redacted=True)
     return None
 
 
