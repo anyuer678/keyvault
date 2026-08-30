@@ -24,3 +24,8 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v
+
+      - name: Dependency audit
+        run: |
+          pip install pip-audit
+          pip-audit --skip-editable
