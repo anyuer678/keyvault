@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "keyvault"
+name = "keyvault-local"
 version = "0.1.0"
 description = "个人 API 密钥保险箱（KeyVault）：本地加密钥匙串，专管 LLM Key / GitHub Token"
 readme = "README.md"
