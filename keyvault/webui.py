@@ -257,7 +257,10 @@ class Handler(BaseHTTPRequestHandler):
             return _json_response(self, {"error": "cross-origin request rejected"}, 403)
         parsed = urlparse(self.path)
         try:
-            length = int(self.headers.get("Content-Length") or 0)
+            raw_len = int(self.headers.get("Content-Length") or 0)
+            if raw_len < 0 or raw_len > 1024 * 1024:  # 1MB 上限 + 拒绝负数
+                return _json_response(self, {"error": "请求体大小超限（最大 1MB）"}, 413)
+            length = raw_len
             payload = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
         except (ValueError, UnicodeDecodeError) as exc:
             return _json_response(self, {"error": "请求体不是合法 JSON：%s" % exc}, 400)
