@@ -6,9 +6,9 @@
 
 接口：
     GET  /               单页应用（内嵌 HTML/JS/CSS）
-    GET  /api/status     {exists, unlocked}
-    POST /api/unlock     {passphrase}            解锁（主密钥仅存进程内存）
-    POST /api/lock       清除内存主密钥
+    GET  /api/status     {exists, unlocked}        unlocked 按请求携带的会话判定
+    POST /api/unlock     {passphrase}              解锁，返回一次性会话 token（主密钥仅存进程内存）
+    POST /api/lock       清除当前会话
     GET  /api/entries    列出条目（仅名称/供应商/过期/状态，永不含值）
     POST /api/add        {name, provider, expires, value}   加密入库
     POST /api/get        {name, full}            摘要（默认）或完整值（显式）
@@ -18,16 +18,23 @@
     POST /api/export     {path}                  导出加密备份
     POST /api/import     {path}                  导入备份（原子替换，需 confirm）
 
-安全：仅本机默认监听；主密码经页面输入后只在进程内存派生密钥（与 CLI 相同
-信任模型）；任何列表/状态接口都不返回密钥值；完整值输出需显式请求且页面
-二次确认。请勿暴露到公网。
+会话：除 unlock 外的所有接口都要求请求头 X-Session 携带 unlock 返回的 token；
+会话 15 分钟滑动过期，到期或 lock 后必须重新输入主密码。任何进程在网页解锁
+之前都无法读取密钥。
+
+安全：仅本机默认监听；Host 头必须是 127.0.0.1/localhost（防 DNS rebinding）；
+带 Origin 的跨站请求一律拒绝；解锁失败限速；主密码经页面输入后只在进程内存
+派生密钥（与 CLI 相同信任模型）；任何列表/状态接口都不返回密钥值；完整值
+输出需显式请求且页面二次确认。请勿暴露到公网。
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import secrets
 import threading
+import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -37,8 +44,14 @@ from . import config
 from . import store
 from . import vault
 
-_KEY: bytes | None = None
 _LOCK = threading.Lock()
+# 会话表：token -> {"key": 主密钥, "last_used": 时间戳}；仅存进程内存，不落盘
+_SESSIONS: dict[str, dict] = {}
+_SESSION_TTL_S = 900  # 15 分钟滑动过期
+# 解锁失败时间戳（滑动窗口限速）
+_UNLOCK_FAILS: list[float] = []
+_UNLOCK_MAX_FAILS = 5
+_UNLOCK_WINDOW_S = 60.0
 
 _PROVIDERS = ("", "openai", "deepseek", "anthropic", "github", "google", "azure", "aws")
 
@@ -47,19 +60,32 @@ def _repo() -> store.VaultRepo:
     return store.VaultRepo(config.vault_path())
 
 
-def _unlocked() -> bool:
-    return _KEY is not None
+def _session_key(token: str | None) -> bytes | None:
+    """校验会话 token，有效则滑动续期并返回主密钥，否则 None。"""
+    if not token:
+        return None
+    now = time.time()
+    with _LOCK:
+        sess = _SESSIONS.get(token)
+        if not sess:
+            return None
+        if now - sess["last_used"] > _SESSION_TTL_S:
+            del _SESSIONS[token]
+            return None
+        sess["last_used"] = now
+        return sess["key"]
 
 
-def _status() -> dict:
+def _drop_session(token: str | None) -> None:
+    if token:
+        with _LOCK:
+            _SESSIONS.pop(token, None)
+
+
+def _status(has_session: bool) -> dict:
     repo = _repo()
-    return {"exists": repo.exists(), "unlocked": _unlocked(),
+    return {"exists": repo.exists(), "unlocked": has_session,
             "path": config.vault_path()}
-
-
-def _ensure_unlocked() -> None:
-    if not _unlocked():
-        raise PermissionError("未解锁：请先输入主密码")
 
 
 def _mask(value: str) -> str:
@@ -68,11 +94,17 @@ def _mask(value: str) -> str:
     return f"{value[:4]}…****{value[-4:]}"
 
 
-def api_status() -> dict:
-    return _status()
+def api_status(has_session: bool) -> dict:
+    return _status(has_session)
 
 
 def api_unlock(payload: dict) -> dict:
+    now = time.time()
+    with _LOCK:
+        _UNLOCK_FAILS[:] = [t for t in _UNLOCK_FAILS if now - t < _UNLOCK_WINDOW_S]
+        if len(_UNLOCK_FAILS) >= _UNLOCK_MAX_FAILS:
+            return {"ok": False,
+                    "error": "解锁失败次数过多，请 1 分钟后再试"}
     passphrase = (payload.get("passphrase") or "").strip()
     if not passphrase:
         return {"ok": False, "error": "请输入主密码"}
@@ -81,22 +113,22 @@ def api_unlock(payload: dict) -> dict:
         return {"ok": False, "error": "vault 不存在，请先通过 CLI 执行 kv init 创建"}
     key = vault.derive_key(passphrase, repo.load_header().salt)
     if not repo.verify_check(key):
+        with _LOCK:
+            _UNLOCK_FAILS.append(time.time())
         return {"ok": False, "error": "无法解锁：主密码错误"}
-    global _KEY
     with _LOCK:
-        _KEY = key
+        _UNLOCK_FAILS.clear()
+        token = secrets.token_urlsafe(32)
+        _SESSIONS[token] = {"key": key, "last_used": time.time()}
+    return {"ok": True, "session": token}
+
+
+def api_lock(token: str | None) -> dict:
+    _drop_session(token)
     return {"ok": True}
 
 
-def api_lock() -> dict:
-    global _KEY
-    with _LOCK:
-        _KEY = None
-    return {"ok": True}
-
-
-def api_entries() -> dict:
-    _ensure_unlocked()
+def api_entries(key: bytes) -> dict:
     repo = _repo()
     today = datetime.now().strftime("%Y-%m-%d")
     items = []
@@ -111,8 +143,7 @@ def api_entries() -> dict:
     return {"ok": True, "items": items}
 
 
-def api_add(payload: dict) -> dict:
-    _ensure_unlocked()
+def api_add(payload: dict, key: bytes) -> dict:
     name = (payload.get("name") or "").strip()
     value = (payload.get("value") or "").strip()
     provider = (payload.get("provider") or "").strip()
@@ -129,26 +160,24 @@ def api_add(payload: dict) -> dict:
     repo = _repo()
     if repo.get(name) is not None:
         return {"ok": False, "error": f"已存在同名条目 {name}"}
-    repo.insert(vault.encrypt_entry(_KEY, name, provider, value, expires or None))
+    repo.insert(vault.encrypt_entry(key, name, provider, value, expires or None))
     return {"ok": True, "name": name}
 
 
-def api_get(payload: dict) -> dict:
-    _ensure_unlocked()
+def api_get(payload: dict, key: bytes) -> dict:
     name = (payload.get("name") or "").strip()
     full = bool(payload.get("full"))
     entry = _repo().get(name)
     if entry is None:
         return {"ok": False, "error": f"未找到 {name}"}
     try:
-        value = vault.decrypt_entry(_KEY, entry)
+        value = vault.decrypt_entry(key, entry)
     except vault.IntegrityError:
         return {"ok": False, "error": "完整性校验失败：密文或名称被篡改"}
     return {"ok": True, "value": value if full else _mask(value), "full": full}
 
 
 def api_delete(payload: dict) -> dict:
-    _ensure_unlocked()
     name = (payload.get("name") or "").strip()
     if not name:
         return {"ok": False, "error": "名称不能为空"}
@@ -226,6 +255,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        session = self.headers.get("X-Session")
         if parsed.path in ("/", "/index.html"):
             body = INDEX_HTML.encode("utf-8")
             self.send_response(200)
@@ -235,27 +265,35 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if parsed.path == "/api/status":
-            return _json_response(self, api_status())
+            return _json_response(self, api_status(_session_key(session) is not None))
         if parsed.path == "/api/entries":
-            try:
-                return _json_response(self, api_entries())
-            except PermissionError as exc:
-                return _json_response(self, {"ok": False, "error": str(exc)}, 401)
+            key = _session_key(session)
+            if key is None:
+                return _json_response(self, {"ok": False, "error": "未解锁：请先输入主密码"}, 401)
+            return _json_response(self, api_entries(key))
         return _json_response(self, {"error": "not found"}, 404)
 
+    _LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
     def _same_origin(self) -> bool:
-        """CSRF / DNS-rebinding 防线：浏览器跨站 POST 必带 Origin，
-        本地服务的 Origin 必须与 Host 一致；非浏览器客户端无 Origin 放行。"""
+        """DNS-rebinding 防线：Host 必须是本机回环地址——攻击者域名的 rebinding
+        解析到本机 IP 后，其 Host 头仍是攻击者域名，在此被拒。
+        CSRF 防线：浏览器跨站请求必带 Origin，携带 Origin 时其主机名同样
+        必须是本机回环地址；非浏览器客户端无 Origin，放行。"""
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]").lower()
+        if host not in self._LOCAL_HOSTS:
+            return False
         origin = self.headers.get("Origin")
         if not origin:
             return True
-        host = self.headers.get("Host") or ""
-        return urlparse(origin).netloc == host
+        ohost = (urlparse(origin).hostname or "").lower()
+        return ohost in self._LOCAL_HOSTS
 
     def do_POST(self):
         if not self._same_origin():
             return _json_response(self, {"error": "cross-origin request rejected"}, 403)
         parsed = urlparse(self.path)
+        session = self.headers.get("X-Session")
         try:
             raw_len = int(self.headers.get("Content-Length") or 0)
             if raw_len < 0 or raw_len > 1024 * 1024:  # 1MB 上限 + 拒绝负数
@@ -266,22 +304,37 @@ class Handler(BaseHTTPRequestHandler):
             return _json_response(self, {"error": "请求体不是合法 JSON：%s" % exc}, 400)
         if not isinstance(payload, dict):
             return _json_response(self, {"error": "请求体必须是 JSON 对象"}, 400)
-        routes = {
+        # 无需会话的路由（unlock/lock）
+        open_routes = {
             "/api/unlock": api_unlock,
-            "/api/lock": lambda _p: api_lock(),
-            "/api/add": api_add,
-            "/api/get": api_get,
+            "/api/lock": lambda _p: api_lock(session),
+        }
+        # 需要有效会话的路由；需要主密钥的接口以 key 参数注入
+        key_routes = {
+            "/api/add": lambda p, key: api_add(p, key),
+            "/api/get": lambda p, key: api_get(p, key),
+            "/api/entries": lambda p, key: api_entries(key),
+        }
+        plain_routes = {
             "/api/delete": api_delete,
             "/api/rotate": api_rotate,
             "/api/audit": api_audit,
             "/api/export": api_export,
             "/api/import": api_import,
         }
-        fn = routes.get(parsed.path)
-        if fn is None:
-            return _json_response(self, {"error": "not found"}, 404)
         try:
-            return _json_response(self, fn(payload))
+            fn = open_routes.get(parsed.path)
+            if fn is not None:
+                return _json_response(self, fn(payload))
+            if parsed.path in key_routes or parsed.path in plain_routes:
+                key = _session_key(session)
+                if key is None:
+                    return _json_response(self, {"ok": False, "error": "未解锁或会话已过期：请重新输入主密码"}, 401)
+                kf = key_routes.get(parsed.path)
+                if kf is not None:
+                    return _json_response(self, kf(payload, key))
+                return _json_response(self, plain_routes[parsed.path](payload))
+            return _json_response(self, {"error": "not found"}, 404)
         except PermissionError as exc:
             return _json_response(self, {"ok": False, "error": str(exc)}, 401)
         except Exception as exc:  # 服务端兜底，不泄露堆栈
@@ -384,7 +437,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
     <p class="sub">本地加密钥匙串。主密码不落盘，密钥以 AES-256-GCM 密文存于本机。仅本机访问。</p>
   </header>
 
-  <div class="notice">安全约定：主密码只在浏览器会话内派生出主密钥并保存在本进程内存；列表永不含密钥值；
+  <div class="notice">安全约定：主密码只在浏览器会话内派生出主密钥并保存在本进程内存（会话 15 分钟无操作自动上锁）；列表永不含密钥值；
     查看完整值需显式点击并二次确认。请勿将本服务暴露到公网。</div>
 
   <!-- 解锁面板 -->
@@ -464,20 +517,24 @@ INDEX_HTML = r"""<!DOCTYPE html>
 <script>
 const $ = id => document.getElementById(id);
 
+/* 会话 token 仅存本页内存：刷新/关闭页面即失效，需重新输入主密码 */
+let SESSION = null;
+
 async function post(path, body) {
   const r = await fetch(path, {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: SESSION ? {"Content-Type": "application/json", "X-Session": SESSION}
+                     : {"Content-Type": "application/json"},
     body: JSON.stringify(body || {}),
   });
   const data = await r.json();
-  if (r.status === 401) { refresh(); throw new Error(data.error || "会话已锁定，请重新解锁"); }
+  if (r.status === 401) { SESSION = null; refresh(); throw new Error(data.error || "会话已过期，请重新解锁"); }
   return data;
 }
 async function getJSON(path) {
-  const r = await fetch(path);
+  const r = await fetch(path, {headers: SESSION ? {"X-Session": SESSION} : {}});
   const data = await r.json();
-  if (r.status === 401) { refresh(); throw new Error(data.error || "会话已锁定，请重新解锁"); }
+  if (r.status === 401) { SESSION = null; refresh(); throw new Error(data.error || "会话已过期，请重新解锁"); }
   return data;
 }
 
@@ -544,6 +601,7 @@ $("unlockBtn").addEventListener("click", async () => {
     if (!data.ok) { $("unlockErr").textContent = data.error; $("unlockErr").classList.remove("hidden"); return; }
     $("unlockErr").classList.add("hidden");
     $("passphrase").value = "";
+    SESSION = data.session;
     await refresh();
   } finally { $("unlockBtn").disabled = false; }
 });

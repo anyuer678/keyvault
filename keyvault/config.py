@@ -1,6 +1,7 @@
 """config.py — vault 路径/目录权限/文件权限。"""
 
 import os
+import sys
 
 _DEFAULT_DIR = os.path.join(os.path.expanduser("~"), ".keyvault")
 _DB_NAME = "secrets.db"
@@ -26,8 +27,8 @@ def ensure_vault_dir() -> None:
 def chmod_0600(path: str) -> None:
     try:
         os.chmod(path, 0o600)
-    except OSError:
-        pass
+    except OSError as exc:
+        print(f"[WARN] 无法收紧文件权限（0600）: {path}: {exc}", file=sys.stderr)
 
 
 def chmod_0700(path: str) -> None:
