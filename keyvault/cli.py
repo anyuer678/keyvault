@@ -295,7 +295,7 @@ def cmd_shell_init(args) -> None:
 def cmd_gui(args) -> None:
     """启动 tkinter 桌面前端（延迟 import，避免无显示环境受影响）。"""
     try:
-        import gui
+        from . import gui
     except Exception as e:
         sys.exit(f"无法启动 GUI：{e}")
     gui.main()
