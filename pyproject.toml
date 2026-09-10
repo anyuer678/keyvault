@@ -12,7 +12,7 @@ license = { text = "MIT" }
 dependencies = ["cryptography>=50.0.0"]
 
 [project.scripts]
-keyvault = "keyvault.cli:main"  # 修复悬空死入口：原 main 模块不存在
+kv = "keyvault.cli:main"
 
 [tool.setuptools]
 packages = ["keyvault"]

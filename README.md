@@ -3,7 +3,7 @@
 > 本地加密钥匙串，专管 LLM API Key（OpenAI / DeepSeek / Anthropic）、GitHub Token、云厂商凭据。主密码（Key）不落盘。
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-81%20passed-brightgreen)](tests/)
 [![Crypto](https://img.shields.io/badge/crypto-scrypt%20%2B%20AES--256--GCM-blueviolet)](vault.py)
 
@@ -114,4 +114,4 @@ python -m pytest tests/ -v
 
 ## License
 
-[GPL-3.0](LICENSE) — Copyright (C) 2026 anyuer678
+[MIT License](LICENSE) — Copyright (C) 2026 anyuer678
