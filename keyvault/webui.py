@@ -216,8 +216,8 @@ def _validate_backup_path(path: str) -> str | None:
     """限制备份路径只能在 ~/.keyvault/backups/ 内（含子目录），
     防止通过任意路径读写系统文件。"""
     backups_dir = os.path.join(os.path.expanduser("~"), ".keyvault", "backups")
-    abs_path = os.path.abspath(path)
-    abs_backups = os.path.abspath(backups_dir)
+    abs_path = os.path.realpath(path)
+    abs_backups = os.path.realpath(backups_dir)
     try:
         if not abs_path.startswith(abs_backups + os.sep) and abs_path != abs_backups:
             return None
