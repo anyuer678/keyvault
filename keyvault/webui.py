@@ -212,15 +212,32 @@ def api_audit(payload: dict) -> dict:
             "items": [{"file": f.file, "key_name": f.key_name} for f in findings]}
 
 
+def _validate_backup_path(path: str) -> str | None:
+    """限制备份路径只能在 ~/.keyvault/backups/ 内（含子目录），
+    防止通过任意路径读写系统文件。"""
+    backups_dir = os.path.join(os.path.expanduser("~"), ".keyvault", "backups")
+    abs_path = os.path.abspath(path)
+    abs_backups = os.path.abspath(backups_dir)
+    try:
+        if not abs_path.startswith(abs_backups + os.sep) and abs_path != abs_backups:
+            return None
+    except Exception:
+        return None
+    return abs_path
+
+
 def api_export(payload: dict) -> dict:
     path = (payload.get("path") or "").strip()
     if not path:
         return {"ok": False, "error": "请指定备份路径"}
+    safe_path = _validate_backup_path(path)
+    if safe_path is None:
+        return {"ok": False, "error": "备份路径必须在 ~/.keyvault/backups/ 内"}
     try:
-        _repo().export(path)
+        _repo().export(safe_path)
     except Exception as exc:
         return {"ok": False, "error": f"导出失败：{exc}"}
-    return {"ok": True, "path": path}
+    return {"ok": True, "path": safe_path}
 
 
 def api_import(payload: dict) -> dict:
@@ -228,10 +245,13 @@ def api_import(payload: dict) -> dict:
     confirm = payload.get("confirm") == "yes"
     if not path:
         return {"ok": False, "error": "请指定备份路径"}
+    safe_path = _validate_backup_path(path)
+    if safe_path is None:
+        return {"ok": False, "error": "备份路径必须在 ~/.keyvault/backups/ 内"}
     if not confirm:
         return {"ok": False, "need_confirm": True, "error": "导入将覆盖当前 vault，请在页面输入 yes 确认"}
     try:
-        _repo().import_from(path)
+        _repo().import_from(safe_path)
     except Exception as exc:
         return {"ok": False, "error": f"导入失败：{exc}"}
     return {"ok": True}
