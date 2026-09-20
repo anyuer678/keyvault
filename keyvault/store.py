@@ -16,6 +16,11 @@ def _chmod_0600(path: str) -> None:
         os.chmod(path, 0o600)
     except OSError:
         pass
+    try:
+        from . import config as _cfg
+        _cfg.restrict_path_acl(path)
+    except Exception:
+        pass
 
 
 class VaultRepo:

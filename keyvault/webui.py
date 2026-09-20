@@ -12,11 +12,11 @@
     GET  /api/entries    列出条目（仅名称/供应商/过期/状态，永不含值）
     POST /api/add        {name, provider, expires, value}   加密入库
     POST /api/get        {name, full}            摘要（默认）或完整值（显式）
-    POST /api/delete     {name}                  删除（页面需二次确认）
+    POST /api/delete     {name, password}        删除（step-up：需主密码）
     POST /api/rotate     {provider}              轮换指引 URL（不联网）
     POST /api/audit      {dir}                   明文密钥扫描（只读，值打码）
-    POST /api/export     {path}                  导出加密备份
-    POST /api/import     {path}                  导入备份（原子替换，需 confirm）
+    POST /api/export     {path, password}        导出备份（step-up）
+    POST /api/import     {path, password, confirm} 导入备份（step-up + confirm）
 
 会话：除 unlock 外的所有接口都要求请求头 X-Session 携带 unlock 返回的 token；
 会话 15 分钟滑动过期，到期或 lock 后必须重新输入主密码。任何进程在网页解锁
@@ -177,7 +177,30 @@ def api_get(payload: dict, key: bytes) -> dict:
     return {"ok": True, "value": value if full else _mask(value), "full": full}
 
 
-def api_delete(payload: dict) -> dict:
+
+def _require_step_up(payload: dict, key: bytes) -> dict | None:
+    """敏感操作 step-up：须再次提交主密码并派生出与会话一致的密钥。"""
+    pwd = (payload.get("password") or payload.get("master_password") or "").strip()
+    if not pwd:
+        return {
+            "ok": False,
+            "need_step_up": True,
+            "error": "敏感操作需要再次输入主密码（step-up）",
+        }
+    try:
+        salt = _repo().load_header().salt
+        derived = vault.derive_key(pwd, salt)
+        if derived != key:
+            return {"ok": False, "need_step_up": True, "error": "主密码不正确"}
+    except Exception as exc:
+        return {"ok": False, "need_step_up": True, "error": f"step-up 校验失败: {exc}"}
+    return None
+
+
+def api_delete(payload: dict, key: bytes) -> dict:
+    err = _require_step_up(payload, key)
+    if err is not None:
+        return err
     name = (payload.get("name") or "").strip()
     if not name:
         return {"ok": False, "error": "名称不能为空"}
@@ -226,7 +249,10 @@ def _validate_backup_path(path: str) -> str | None:
     return abs_path
 
 
-def api_export(payload: dict) -> dict:
+def api_export(payload: dict, key: bytes) -> dict:
+    err = _require_step_up(payload, key)
+    if err is not None:
+        return err
     path = (payload.get("path") or "").strip()
     if not path:
         return {"ok": False, "error": "请指定备份路径"}
@@ -240,7 +266,10 @@ def api_export(payload: dict) -> dict:
     return {"ok": True, "path": safe_path}
 
 
-def api_import(payload: dict) -> dict:
+def api_import(payload: dict, key: bytes) -> dict:
+    err = _require_step_up(payload, key)
+    if err is not None:
+        return err
     path = (payload.get("path") or "").strip()
     confirm = payload.get("confirm") == "yes"
     if not path:
@@ -334,13 +363,16 @@ class Handler(BaseHTTPRequestHandler):
             "/api/add": lambda p, key: api_add(p, key),
             "/api/get": lambda p, key: api_get(p, key),
             "/api/entries": lambda p, key: api_entries(key),
+            "/api/delete": lambda p, key: api_delete(p, key),
+            "/api/export": lambda p, key: api_export(p, key),
+            "/api/import": lambda p, key: api_import(p, key),
         }
+        key_routes["/api/delete"] = lambda p, key: api_delete(p, key)
+        key_routes["/api/export"] = lambda p, key: api_export(p, key)
+        key_routes["/api/import"] = lambda p, key: api_import(p, key)
         plain_routes = {
-            "/api/delete": api_delete,
             "/api/rotate": api_rotate,
             "/api/audit": api_audit,
-            "/api/export": api_export,
-            "/api/import": api_import,
         }
         try:
             fn = open_routes.get(parsed.path)
