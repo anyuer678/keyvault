@@ -36,6 +36,54 @@ _ROTATE_URLS = {
 }
 
 
+
+# CLI 解锁失败限速（进程内 + 可选磁盘记录）
+_UNLOCK_FAILS: list[float] = []
+_UNLOCK_MAX_FAILS = 5
+_UNLOCK_WINDOW_S = 60.0
+
+
+def _unlock_lock_path() -> str:
+    return os.path.join(config.vault_dir(), ".unlock_fails")
+
+
+def _unlock_rate_check() -> None:
+    import time
+    now = time.time()
+    path = _unlock_lock_path()
+    try:
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as f:
+                disk = [float(x) for x in f.read().split() if x.strip()]
+            _UNLOCK_FAILS.extend(disk)
+    except OSError:
+        pass
+    _UNLOCK_FAILS[:] = [x for x in _UNLOCK_FAILS if now - x < _UNLOCK_WINDOW_S]
+    if len(_UNLOCK_FAILS) >= _UNLOCK_MAX_FAILS:
+        sys.exit("解锁失败次数过多，请 1 分钟后再试")
+
+
+def _unlock_rate_fail() -> None:
+    import time
+    _UNLOCK_FAILS.append(time.time())
+    try:
+        os.makedirs(config.vault_dir(), exist_ok=True)
+        with open(_unlock_lock_path(), "w", encoding="utf-8") as f:
+            f.write(" ".join(str(x) for x in _UNLOCK_FAILS[-20:]))
+    except OSError:
+        pass
+
+
+def _unlock_rate_clear() -> None:
+    _UNLOCK_FAILS.clear()
+    try:
+        path = _unlock_lock_path()
+        if os.path.isfile(path):
+            os.remove(path)
+    except OSError:
+        pass
+
+
 def _repo() -> store.VaultRepo:
     return store.VaultRepo(config.vault_path())
 
@@ -48,12 +96,15 @@ def _ensure_key(prompt: str = "主密码: ", force: bool = False) -> bytes:
     repo = _repo()
     if not repo.exists():
         sys.exit("vault 不存在：请先运行 kv init")
+    _unlock_rate_check()
     passphrase = os.environ.get("KV_PASS")
     if not passphrase:
         passphrase = getpass.getpass(prompt)
     key = vault.derive_key(passphrase, repo.load_header().salt)
     if not repo.verify_check(key):
+        _unlock_rate_fail()
         sys.exit("无法解锁：主密码错误")
+    _unlock_rate_clear()
     _KEY = key
     return key
 
@@ -68,6 +119,18 @@ def _env_name(provider: str) -> str:
     if provider in _ENV_NAMES:
         return _ENV_NAMES[provider]
     return f"{provider.upper().replace('-', '_')}_API_KEY"
+
+
+def cmd_rekey(args) -> None:
+    """更新 KDF 元数据标记（vault.KDF_VERSION）并打印迁移说明。"""
+    _ensure_key("当前主密码: ")
+    repo = _repo()
+    header = repo.load_header()
+    target = getattr(vault, "KDF_VERSION", "scrypt-v1")
+    repo.set_meta("kdf", target)
+    print(f"KDF meta: {header.kdf} -> {target}")
+    print("派生参数仍为 scrypt N=2^15,r=8,p=1（见 vault.py）。")
+    print("更换主密码请：kv export-backup → 新密码 kv init → kv import-backup。")
 
 
 def cmd_init(args) -> None:
@@ -306,7 +369,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="command", required=True)
 
     sub.add_parser("init", help="创建 vault（主密码 ≥8 位）")
-    sub.add_parser("unlock", help="解锁（密码经 stdin / 环境变量 KV_PASS）")
+    sub.add_parser("unlock", help="解锁（失败限速）")
+    sub.add_parser("rekey", help="更新 KDF 元数据标记")
 
     p_add = sub.add_parser("add", help="加密入库")
     p_add.add_argument("name")
@@ -363,6 +427,7 @@ def _dispatch(args) -> None:
     cmds = {
         "init": cmd_init,
         "unlock": cmd_unlock,
+        "rekey": cmd_rekey,
         "add": cmd_add,
         "get": cmd_get,
         "list": cmd_list,
