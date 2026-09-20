@@ -75,8 +75,10 @@ def _windows_user() -> str:
 
 
 def restrict_path_acl(path: str) -> bool:
-    """Windows：将 ACL 收紧为当前用户（先授权再断继承，降低自锁风险）。"""
+    """Windows：将 ACL 收紧为当前用户。默认关闭；需 KV_APPLY_WIN_ACL=1。"""
     if os.name != "nt" or not path or not os.path.exists(path):
+        return False
+    if os.environ.get("KV_APPLY_WIN_ACL", "0") != "1":
         return False
     user = _windows_user()
     if not user:
