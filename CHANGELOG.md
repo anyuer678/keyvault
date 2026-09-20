@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Security
+- Windows：库文件/目录 ACL 收紧为仅当前用户（`icacls`，在 chmod 0600 之外）
+- Web UI：delete/export/import 增加 **step-up**（payload 需 `password` 再次验证主密码）
+- 文档：新增 `docs/THREAT_MODEL.md`
+
+
 - fc254f8 chore: 包名 keyvault→keyvault-local（PyPI 名称冲突）
 - d0f71ec fix: 删除 requirements.txt 重复声明源（钉死 cryptography==48.0.0 覆盖了 pyproject 的 >=50.0.0），CI 改从 pyproject 安装
 - 702bf77 fix: cryptography 下限提至 50.0.0（pip-audit 发现 48.0.0 存在 4 个已知漏洞）

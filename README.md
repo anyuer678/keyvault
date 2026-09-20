@@ -9,6 +9,8 @@
 
 比 1Password 轻、比 `.env` 安全。密钥仅以 AES-256-GCM 密文存于本地单文件 `secrets.db`。
 
+> **安全边界说明（Sprint1）**：Web UI 的 delete/export/import 需 **step-up**（再次输入主密码）。Windows ACL 收紧为 **opt-in**：设置 `KV_APPLY_WIN_ACL=1` 或对库目录执行 `icacls`（避免默认与 SQLite 冲突）。详见 [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)。
+
 > **安全边界说明**：密钥仅在本地加解密，零网络调用。Web UI 默认绑定 `127.0.0.1:8765`，内置 CSRF/DNS-rebinding 防护和会话过期。Windows 上 `os.chmod 0600` 仅影响只读位，需配合磁盘加密/ACL。CLI 解锁无速率限制，建议仅在可信环境使用。
 
 ## 功能特性
