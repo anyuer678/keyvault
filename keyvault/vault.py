@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
+KDF_ID = "scrypt"
+KDF_VERSION = "scrypt-v1"  # N=2**15, r=8, p=1, 32B key
 SCRYPT_N = 2 ** 15
 SCRYPT_R = 8
 SCRYPT_P = 1

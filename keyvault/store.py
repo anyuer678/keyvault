@@ -56,10 +56,14 @@ class VaultRepo:
             conn.close()
         if "salt" not in rows:
             raise ValueError("vault 库头损坏：缺少 salt")
+        kdf = rows.get("kdf", "scrypt") or "scrypt"
+        # 兼容 scrypt / scrypt-v1 等版本化标识（参数见 vault.KDF_*）
+        if not str(kdf).startswith("scrypt"):
+            raise ValueError(f"不支持的 KDF: {kdf}")
         return VaultHeader(
             version=int(rows.get("version", "1")),
             salt=bytes.fromhex(rows["salt"]),
-            kdf=rows.get("kdf", "scrypt"),
+            kdf=kdf,
         )
 
     def insert(self, entry: EncryptedEntry) -> None:
@@ -137,6 +141,15 @@ class VaultRepo:
             src.close()
         _chmod_0600(out_path)
 
+    def set_meta(self, key: str, value: str) -> None:
+        """写入/更新 meta 键值（如 kdf 版本）。"""
+        conn = sqlite3.connect(self.path)
+        try:
+            conn.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)", (key, value))
+            conn.commit()
+        finally:
+            conn.close()
+
     def set_check(self, key: bytes) -> None:
         """写入解锁校验标记（扩展：cli init 后调用）。"""
         nonce = os.urandom(NONCE_LEN)
@@ -179,8 +192,8 @@ class VaultRepo:
             raise ValueError("备份文件不是合法 vault（缺少 meta 表）")
         finally:
             probe.close()
-        if "salt" not in rows or rows.get("version", "1") != "1" \
-                or rows.get("kdf", "scrypt") != "scrypt":
+        kdf = str(rows.get("kdf", "scrypt") or "scrypt")
+        if "salt" not in rows or rows.get("version", "1") != "1" or not kdf.startswith("scrypt"):
             raise ValueError("备份文件不是合法 vault（缺少/错误 header）")
         tmp = self.path + _TMP_SUFFIX
         try:
