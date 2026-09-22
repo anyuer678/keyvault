@@ -338,19 +338,40 @@ class Handler(BaseHTTPRequestHandler):
         ohost = (urlparse(origin).hostname or "").lower()
         return ohost in self._LOCAL_HOSTS
 
+    def _read_body(self):
+        """Read the request body before any early return.
+
+        If we 403/4xx before draining Content-Length, the client is still
+        sending the body and the socket is aborted (WinError 10053 / ECONNRESET),
+        which shows up as flaky ConnectionAbortedError in tests. Returns
+        (payload, err_response_sent).
+        """
+        try:
+            raw_len = int(self.headers.get("Content-Length") or 0)
+            if raw_len < 0 or raw_len > 1024 * 1024:  # 1MB cap + reject negatives
+                # Drain a bounded amount so keep-alive does not hang.
+                drain = 0 if raw_len <= 0 else min(raw_len, 8 * 1024 * 1024)
+                if drain:
+                    self.rfile.read(drain)
+                return None, _json_response(self, {"error": "请求体大小超限（最大 1MB）"}, 413)
+            raw = self.rfile.read(raw_len) if raw_len else b"{}"
+        except (ValueError, UnicodeDecodeError) as exc:
+            return None, _json_response(self, {"error": "请求体不是合法 JSON：%s" % exc}, 400)
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError) as exc:
+            return None, _json_response(self, {"error": "请求体不是合法 JSON：%s" % exc}, 400)
+        return payload, None
+
     def do_POST(self):
+        # Drain body first, then Host/Origin checks (see _read_body).
+        payload, err = self._read_body()
+        if err is not None:
+            return
         if not self._same_origin():
             return _json_response(self, {"error": "cross-origin request rejected"}, 403)
         parsed = urlparse(self.path)
         session = self.headers.get("X-Session")
-        try:
-            raw_len = int(self.headers.get("Content-Length") or 0)
-            if raw_len < 0 or raw_len > 1024 * 1024:  # 1MB 上限 + 拒绝负数
-                return _json_response(self, {"error": "请求体大小超限（最大 1MB）"}, 413)
-            length = raw_len
-            payload = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
-        except (ValueError, UnicodeDecodeError) as exc:
-            return _json_response(self, {"error": "请求体不是合法 JSON：%s" % exc}, 400)
         if not isinstance(payload, dict):
             return _json_response(self, {"error": "请求体必须是 JSON 对象"}, 400)
         # 无需会话的路由（unlock/lock）
