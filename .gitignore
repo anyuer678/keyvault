@@ -24,3 +24,9 @@ LLM_API_KEY*
 Thumbs.db
 # 构建产物
 dist/
+
+# coverage
+.coverage
+htmlcov/
+coverage.xml
+
