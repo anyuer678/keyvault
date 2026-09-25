@@ -1,5 +1,7 @@
 # KeyVault —— 个人 API 密钥保险箱
 
+[![Tests](https://github.com/anyuer678/keyvault/actions/workflows/test.yml/badge.svg)](https://github.com/anyuer678/keyvault/actions/workflows/test.yml)
+
 > 本地加密钥匙串，专管 LLM API Key（OpenAI / DeepSeek / Anthropic）、GitHub Token、云厂商凭据。主密码（Key）不落盘。
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
