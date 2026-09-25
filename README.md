@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-81%20passed-brightgreen)](tests/)
-[![Crypto](https://img.shields.io/badge/crypto-scrypt%20%2B%20AES--256--GCM-blueviolet)](vault.py)
+[![Crypto](https://img.shields.io/badge/crypto-scrypt%20%2B%20AES--256--GCM-blueviolet)](keyvault/vault.py)
 
 比 1Password 轻、比 `.env` 安全。密钥仅以 AES-256-GCM 密文存于本地单文件 `secrets.db`。
 
