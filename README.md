@@ -1,12 +1,14 @@
-# KeyVault —— 个人 API 密钥保险箱
+<div align="center">
+
+# KeyVault
+
+**个人 API 密钥保险箱**——本地加密钥匙串，专管 LLM API Key（OpenAI / DeepSeek / Anthropic）、GitHub Token、云厂商凭据，主密码（Key）不落盘
 
 [![Tests](https://github.com/anyuer678/keyvault/actions/workflows/test.yml/badge.svg)](https://github.com/anyuer678/keyvault/actions/workflows/test.yml)
-
-> 本地加密钥匙串，专管 LLM API Key（OpenAI / DeepSeek / Anthropic）、GitHub Token、云厂商凭据。主密码（Key）不落盘。
-
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-81%20passed-brightgreen)](tests/)
+
+</div>
 [![Crypto](https://img.shields.io/badge/crypto-scrypt%20%2B%20AES--256--GCM-blueviolet)](keyvault/vault.py)
 
 比 1Password 轻、比 `.env` 安全。密钥仅以 AES-256-GCM 密文存于本地单文件 `secrets.db`。
