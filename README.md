@@ -102,7 +102,7 @@ audit.py        明文密钥扫描（只读，值永不返回）
 gui.py          tkinter 桌面 GUI（延迟 import）
 webui.py        零依赖 Web 前端（内嵌 HTML/JS/CSS）
 config.py       vault 路径/目录权限
-tests/          pytest 测试（81 例，全 mock 不触网）
+tests/          pytest 测试（100 例，全 mock 不触网）
 ```
 
 ## 测试
