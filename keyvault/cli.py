@@ -278,6 +278,8 @@ def cmd_edit(args) -> None:
 
 
 def cmd_delete(args) -> None:
+    # step-up：删除与其他写操作一致要求主密码（此前 --yes 可无密码删除）
+    _ensure_key()
     repo = _repo()
     if repo.get(args.name) is None:
         sys.exit(f"未找到 {args.name}")
@@ -332,6 +334,8 @@ def cmd_export_backup(args) -> None:
 
 
 def cmd_import_backup(args) -> None:
+    # step-up：导入覆盖当前库属高危操作，与 WebUI 一致要求主密码
+    _ensure_key()
     repo = _repo()
     if not repo.exists():
         sys.exit("vault 不存在：请先运行 kv init")
@@ -343,7 +347,18 @@ def cmd_import_backup(args) -> None:
     if answer != "yes":
         print("已取消")
         return
-    repo.import_from(args.path)
+    # 验证备份能用主密码解锁：用「备份 header salt + 用户密码」派生 key 验
+    # 备份的 check 标记（check 绑定各库自身 salt，不能拿当前库 key 直接验）。
+    # 防止导入异密码备份后整体锁死（外部审查 2026-10 发现）。
+    passphrase = os.environ.get("KV_PASS")
+    if not passphrase:
+        passphrase = getpass.getpass("主密码: ")
+    backup_repo = store.VaultRepo(args.path)
+    backup_key = vault.derive_key(passphrase, backup_repo.load_header().salt)
+    repo.import_from(args.path, check_key=backup_key)
+    # 当前内存 key 已不适用新库内容（salt 变化），强制下次操作重新派生
+    global _KEY
+    _KEY = None
     print("备份已导入")
 
 
