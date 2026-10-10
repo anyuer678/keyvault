@@ -123,6 +123,10 @@ python -m pytest tests/ -v
 
 **安全声明**：主密码和密钥值仅在本地进程内存中存在，零网络调用。Web UI 绑定 `127.0.0.1` 并内置 CSRF/DNS-rebinding 防护，但本地其他进程仍可访问。Windows 上文件权限机制有限（`os.chmod` 仅影响只读位），建议配合 BitLocker 等磁盘加密使用。CLI 解锁无速率限制，建议仅在可信环境使用。
 
+## 配合使用
+
+keyvault 为本机 AI 工具集中管理密钥：[lumen](https://github.com/anyuer678/lumen)（Agent Runtime）、[voiceconsole](https://github.com/anyuer678/voiceconsole)（语音 MCP）等工具的 LLM Key / Token 可统一存入，避免明文散落各处。机器可读输出（`kv get --json`）在规划中。体系地图：[https://anyuer678.github.io/yuer.dev/map](https://anyuer678.github.io/yuer.dev/map)
+
 ## License
 
 [MIT License](LICENSE) — Copyright (C) 2026 anyuer678
