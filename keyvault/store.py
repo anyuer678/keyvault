@@ -181,8 +181,13 @@ class VaultRepo:
             return False
         return plain == _CHECK_MARKER
 
-    def import_from(self, in_path: str) -> None:
-        """校验 header 后原子替换为备份库（tmp + os.replace）。"""
+    def import_from(self, in_path: str, check_key: bytes | None = None) -> None:
+        """校验 header 后原子替换为备份库（tmp + os.replace）。
+
+        check_key 传入时（推荐）验证备份的 check 标记——防止导入用其他
+        密码生成的备份后当前库整体锁死（外部审查 2026-10 发现）。注意：
+        check 标记绑定备份库自身 salt 派生的 key，调用方应传
+        derive(用户密码, 备份header.salt)，而非当前库的 key。"""
         if not os.path.exists(in_path):
             raise FileNotFoundError(in_path)
         probe = sqlite3.connect(in_path)
@@ -195,6 +200,21 @@ class VaultRepo:
         kdf = str(rows.get("kdf", "scrypt") or "scrypt")
         if "salt" not in rows or rows.get("version", "1") != "1" or not kdf.startswith("scrypt"):
             raise ValueError("备份文件不是合法 vault（缺少/错误 header）")
+        if check_key is not None:
+            chk = rows.get("check")
+            ok = False
+            if chk:
+                nonce_hex, _, ct_hex = str(chk).partition(":")
+                try:
+                    ok = AESGCM(check_key).decrypt(
+                        bytes.fromhex(nonce_hex), bytes.fromhex(ct_hex), b"check"
+                    ) == _CHECK_MARKER
+                except Exception:
+                    ok = False
+            if not ok:
+                raise ValueError(
+                    "备份与主密码不匹配（check 校验失败）：导入后当前库将无法用该密码解锁，已拒绝"
+                )
         tmp = self.path + _TMP_SUFFIX
         try:
             src = sqlite3.connect(in_path)
