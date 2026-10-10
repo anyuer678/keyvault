@@ -193,8 +193,20 @@ def cmd_get(args) -> None:
         value = vault.decrypt_entry(key, entry)
     except ValueError:
         sys.exit("完整性校验失败：密文或名称被篡改")
+    today = datetime.now().strftime("%Y-%m-%d")
+    if getattr(args, "json", False):
+        out = {
+            "name": entry.name,
+            "provider": entry.provider,
+            "expires_at": entry.expires_at,
+            "expired": bool(entry.expires_at) and entry.expires_at < today,
+            # --json 默认脱敏；明文需显式 --json --full（与文本模式一致）
+            "value": value if args.full else _mask(value),
+        }
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return
     print(value if args.full else _mask(value))
-    if entry.expires_at and entry.expires_at < datetime.now().strftime("%Y-%m-%d"):
+    if entry.expires_at and entry.expires_at < today:
         print(f"（该条目已过期：{entry.expires_at}，请轮换）", file=sys.stderr)
 
 
@@ -202,8 +214,20 @@ def cmd_list(args) -> None:
     repo = _repo()
     if not repo.exists():
         sys.exit("vault 不存在：请先运行 kv init")
-    print(f"{'NAME':<20} {'PROVIDER':<12} {'EXPIRES':<12} STATUS")
     today = datetime.now().strftime("%Y-%m-%d")
+    if getattr(args, "json", False):
+        entries = [
+            {
+                "name": e.name,
+                "provider": e.provider,
+                "expires_at": e.expires_at,
+                "expired": bool(e.expires_at) and e.expires_at < today,
+            }
+            for e in repo.list_all()
+        ]
+        print(json.dumps({"entries": entries}, ensure_ascii=False, indent=2))
+        return
+    print(f"{'NAME':<20} {'PROVIDER':<12} {'EXPIRES':<12} STATUS")
     for e in repo.list_all():
         expired = bool(e.expires_at) and e.expires_at < today
         status = "EXPIRED" if expired else ""
@@ -396,8 +420,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_get = sub.add_parser("get", help="解密输出（默认仅显示后 4 位）")
     p_get.add_argument("name")
     p_get.add_argument("--full", action="store_true", help="显示完整值")
+    p_get.add_argument("--json", action="store_true", help="机器可读 JSON（默认脱敏，--full 才含明文）")
 
-    sub.add_parser("list", help="列出名称/供应商/过期日期（永不含值）")
+    p_list = sub.add_parser("list", help="列出名称/供应商/过期日期（永不含值）")
+    p_list.add_argument("--json", action="store_true", help="机器可读 JSON")
 
     p_use = sub.add_parser("use", help="输出 export 行或写入临时 .env")
     p_use.add_argument("name")

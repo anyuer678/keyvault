@@ -125,7 +125,21 @@ python -m pytest tests/ -v
 
 ## 配合使用
 
-keyvault 为本机 AI 工具集中管理密钥：[lumen](https://github.com/anyuer678/lumen)（Agent Runtime）、[voiceconsole](https://github.com/anyuer678/voiceconsole)（语音 MCP）等工具的 LLM Key / Token 可统一存入，避免明文散落各处。机器可读输出（`kv get --json`）在规划中。体系地图：[https://anyuer678.github.io/yuer.dev/map](https://anyuer678.github.io/yuer.dev/map)
+keyvault 为本机 AI 工具集中管理密钥：[lumen](https://github.com/anyuer678/lumen)（Agent Runtime）、[voiceconsole](https://github.com/anyuer678/voiceconsole)（语音 MCP）等工具的 LLM Key / Token 可统一存入，避免明文散落各处。
+
+机器可读输出已实现并实测（2026-10-10）：`kv get <name> --json` 输出 `{name, provider, expires_at, expired, value}`（**默认脱敏**，`--json --full` 才含明文，与文本模式语义一致）；`kv list --json` 输出 `{entries: [...]}`（永不含值）。示例：
+
+```json
+{
+  "name": "deepseek",
+  "provider": "deepseek",
+  "expires_at": null,
+  "expired": false,
+  "value": "sk-a…****f456"
+}
+```
+
+体系地图：[https://anyuer678.github.io/yuer.dev/map](https://anyuer678.github.io/yuer.dev/map)
 
 ## License
 
