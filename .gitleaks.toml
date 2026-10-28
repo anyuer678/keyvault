@@ -1,0 +1,14 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "tests/ 里是固定的假密钥占位串，不是真实凭据；只按具体字面值豁免，不用路径豁免，避免掩盖将来真的写进测试里的密钥"
+regexes = [
+  '''sk-stdin-value-9999''',
+  '''sk-webui-secret-1234''',
+  '''sk-leak-123456''',
+  '''sk-leak-654321''',
+  '''sk-from-stdin''',
+  '''test-pass-123''',
+  '''webui-test-pass''',
+]
